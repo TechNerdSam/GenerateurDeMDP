@@ -1,1056 +1,1170 @@
-import javax.swing.*;
-import javax.swing.border.Border;
-import javax.swing.event.DocumentEvent;
-import javax.swing.event.DocumentListener;
-import java.awt.*;
-import java.awt.datatransfer.Clipboard;
-import java.awt.datatransfer.StringSelection;
-import java.awt.event.ActionEvent;
-import java.awt.event.ActionListener;
-import java.awt.event.MouseAdapter;
-import java.awt.event.MouseEvent;
-import java.security.SecureRandom;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-
-/**
- * PasswordGeneratorApp is a graphical user interface application
- * for generating strong, random passwords and evaluating their strength.
- * It emphasizes security by using {@link SecureRandom} for cryptographic-strength
- * random number generation. The UI is built with Swing and features a custom
- * futuristic theme.
+/*
+ * PasswordGeneratorApp - Java SE Desktop Application
+ * TOP TIER 2026 GRADE (MAXIMUM FEATURES + LIFESTYLE TYPOGRAPHY)
+ * Soft Dark Mode Design, Records, Entropy Calculation, Hide/Show Password.
  *
- * <p>Key features include:</p>
- * <ul>
- * <li>Customizable password length and character sets (uppercase, lowercase, numbers, symbols).</li>
- * <li>Generation of passwords with at least one character from each selected set.</li>
- * <li>Password strength evaluation (Weak, Medium, Strong, Very Strong) with Entropy calculation.</li>
- * <li>Real-time password strength feedback for typed/generated passwords.</li>
- * <li>Fine-grained character exclusion for tailored security policies.</li>
- * <li>Visual feedback for password strength and entropy.</li>
- * <li>Option to copy generated passwords to the clipboard.</li>
- * <li>Ephemeral session history of generated passwords for convenience without persistence.</li>
- * </ul>
- *
- * <p>Designed for Java 6 compatibility.</p>
+ * Notes:
+ * - Java 17+ recommended (Uses Records)
+ * - File MUST be named PasswordGeneratorApp.java
+ * - Fonts use generic modern Sans-serif names (e.g., 'Segoe UI' or 'Arial' variation)
+ * with bold/light weights for a 'Lifestyle' aesthetic.
  */
+
+import javax.swing.*;
+import javax.swing.border.EmptyBorder;
+import javax.swing.event.ChangeEvent;
+import javax.swing.event.ChangeListener;
+import javax.swing.text.DefaultEditorKit;
+import java.awt.*;
+import java.awt.datatransfer.StringSelection;
+import java.awt.event.*;
+import java.security.SecureRandom;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Objects;
+import javax.swing.plaf.basic.BasicSliderUI;
+
 public class PasswordGeneratorApp {
 
-    // --- Constantes de l'application / Application Constants ---
-    private static final String APP_TITLE = "Générateur de Mots de Passe Ultra Sécurisé";
-    private static final String GENERATE_BUTTON_TEXT = "Générer Mot de Passe";
-    private static final String COPY_BUTTON_TEXT = "Copier";
-    private static final String HISTORY_BUTTON_TEXT = "Historique";
-    private static final String LENGTH_LABEL_TEXT = "Longueur (8-32) :";
-    private static final String UPPERCASE_CHECKBOX_TEXT = "Majuscules (A-Z)";
-    private static final String LOWERCASE_CHECKBOX_TEXT = "Minuscules (a-z)";
-    private static final String NUMBERS_CHECKBOX_TEXT = "Nombres (0-9)";
-    private static final String SYMBOLS_CHECKBOX_TEXT = "Symboles (!@#$)";
-    private static final String EXCLUDE_CHARS_LABEL_TEXT = "Exclure caractères :";
-    private static final String STRENGTH_LABEL_PREFIX = "Force: ";
-    private static final String ENTROPY_LABEL_PREFIX = "Entropie: ";
-
-    // --- Messages d'erreur et de succès / Error and Success Messages ---
-    private static final String ERROR_NO_CHARSET_SELECTED = "Veuillez sélectionner au moins un type de caractère.";
-    private static final String ERROR_INTERNAL_GEN_MESSAGE = "Erreur interne lors de la génération du mot de passe. Le pool de caractères est peut-être vide après les exclusions.";
-    private static final String ERROR_INTERNAL_GEN_TITLE = "Erreur Interne";
-    private static final String COPY_SUCCESS_MESSAGE = "Mot de passe copié dans le presse-papiers !";
-    private static final String COPY_SUCCESS_TITLE = "Copie Réussie";
-    private static final String COPY_ERROR_MESSAGE_PREFIX = "Erreur lors de la copie du mot de passe: ";
-    private static final String COPY_ERROR_TITLE = "Erreur de Copie";
-    private static final String NO_PASSWORD_TO_COPY_MESSAGE = "Aucun mot de passe à copier.";
-    private static final String NO_PASSWORD_TO_COPY_TITLE = "Copie Impossible";
-    private static final String HISTORY_DIALOG_TITLE = "Historique des Mots de Passe";
-    private static final String HISTORY_EMPTY_MESSAGE = "Aucun mot de passe n'a encore été généré dans cette session.";
-    private static final String HISTORY_EMPTY_TITLE = "Historique Vide";
-    private static final String CLOSE_BUTTON_TEXT = "Fermer";
-    private static final String NIMBUS_LOOK_AND_FEEL_ERROR = "Nimbus Look and Feel not found. Using default L&F. Error: ";
-
-    // --- Dimensions UI / UI Dimensions ---
-    private static final int FRAME_WIDTH = 750;
-    private static final int FRAME_HEIGHT = 650;
-    private static final int BORDER_PADDING = 25;
-    private static final int INSETS_VERTICAL = 10;
-    private static final int INSETS_HORIZONTAL = 15;
-    private static final int SLIDER_MIN_LENGTH = 8;
-    private static final int SLIDER_MAX_LENGTH = 32;
-    private static final int SLIDER_DEFAULT_LENGTH = 16;
-    private static final int PASSWORD_HISTORY_MAX_SIZE = 10;
-    private static final int HISTORY_DIALOG_WIDTH = 400;
-    private static final int HISTORY_DIALOG_HEIGHT = 300;
-
-
-    // --- Couleurs UI / UI Colors ---
-    private static final Color MAIN_GRADIENT_START = new Color(40, 20, 60); // Dark purple
-    private static final Color MAIN_GRADIENT_END = new Color(25, 15, 35);   // Darker purple
-    private static final Color TITLE_COLOR = new Color(255, 150, 200); // Light pink
-    private static final Color LABEL_COLOR = new Color(200, 180, 220); // Light lavender
-    private static final Color PASSWORD_FIELD_BG = new Color(10, 10, 15); // Very dark background
-    private static final Color PASSWORD_FIELD_TEXT_COLOR = new Color(100, 255, 100); // Green text
-    private static final Color PASSWORD_FIELD_BORDER_COLOR = new Color(180, 100, 255); // Purple border
-    private static final Color EXCLUDE_FIELD_BG = new Color(10, 10, 20);
-    private static final Color EXCLUDE_FIELD_TEXT_COLOR = new Color(200, 200, 255);
-    private static final Color EXCLUDE_FIELD_BORDER_COLOR = new Color(90, 40, 150);
-    private static final Color ERROR_TEXT_COLOR = new Color(255, 90, 90); // Red for errors
-    private static final Color ENTROPY_LABEL_COLOR = new Color(180, 180, 255); // Light blue/purple
-    private static final Color BUTTON_NORMAL_BG = new Color(120, 60, 180); // Purple
-    private static final Color BUTTON_HOVER_BG = new Color(150, 90, 210);  // Lighter purple
-    private static final Color BUTTON_BORDER_COLOR = new Color(90, 40, 150); // Darker purple
-    private static final Color BUTTON_FOREGROUND_COLOR = Color.WHITE;
-
-
-    // --- Composants de l'interface utilisateur / UI Components ---
-    private JFrame frame;
-    private JSlider lengthSlider;
-    private JCheckBox upperCaseCheckBox;
-    private JCheckBox lowerCaseCheckBox;
-    private JCheckBox numbersCheckBox;
-    private JCheckBox symbolsCheckBox;
-    private JTextField excludeCharsField;
-    private JTextField passwordDisplayField;
-    private JButton generateButton;
-    private JButton copyButton;
-    private JButton showHistoryButton;
-    private JLabel strengthLabel;
-    private JLabel entropyLabel;
-    private JLabel charSetErrorLabel;
-
-    // --- Service pour la logique des mots de passe / Service for password logic ---
-    private final PasswordService passwordService;
-
-    // --- Historique des mots de passe (en mémoire pour la session courante) / Password History (in-memory for current session) ---
-    private final List<String> passwordHistory;
-
-    /**
-     * Represents the evaluated strength of a password.
-     * Représente le niveau de force évalué d'un mot de passe.
-     */
-    public enum PasswordStrengthLevel {
-        EMPTY("N/A", Color.WHITE), // Non applicable, for empty or unevaluated passwords
-        WEAK("Faible", new Color(255, 80, 80)),         // Red
-        MEDIUM("Moyen", new Color(255, 180, 50)),       // Orange
-        STRONG("Fort", new Color(100, 220, 100)),       // Light Green
-        VERY_STRONG("Très Fort", new Color(50, 200, 255)); // Bright Blue/Cyan
-
-        private final String displayName;
-        private final Color displayColor;
-
-        PasswordStrengthLevel(String displayName, Color displayColor) {
-            this.displayName = displayName;
-            this.displayColor = displayColor;
-        }
-
-        /**
-         * Returns the display name for the strength level.
-         * @return The display name (e.g., "Faible", "Fort").
-         * Retourne le nom d'affichage pour le niveau de force.
-         * @return Le nom d'affichage (ex: "Faible", "Fort").
-         */
-        public String getDisplayName() {
-            return displayName;
-        }
-
-        /**
-         * Returns the color associated with the strength level for UI display.
-         * @return The display color.
-         * Retourne la couleur associée au niveau de force pour l'affichage UI.
-         * @return La couleur d'affichage.
-         */
-        public Color getDisplayColor() {
-            return displayColor;
-        }
-    }
-
-    /**
-     * Data class to hold password strength evaluation results, including strength level and entropy.
-     * Classe de données pour contenir les résultats de l'évaluation de la force du mot de passe,
-     * incluant le niveau de force et l'entropie.
-     */
-    private static class PasswordEvaluationResult {
-        final PasswordStrengthLevel strengthLevel;
-        final double entropy;
-
-        /**
-         * Constructs a new PasswordEvaluationResult.
-         * @param strengthLevel The evaluated password strength level.
-         * @param entropy The calculated entropy in bits.
-         * Construit un nouveau PasswordEvaluationResult.
-         * @param strengthLevel Le niveau de force évalué du mot de passe.
-         * @param entropy L'entropie calculée en bits.
-         */
-        PasswordEvaluationResult(PasswordStrengthLevel strengthLevel, double entropy) {
-            this.strengthLevel = strengthLevel;
-            this.entropy = entropy;
-        }
-    }
-
-    /**
-     * Handles password generation and strength evaluation logic.
-     * This class is designed to be testable and independent of the UI.
-     * Gère la logique de génération et d'évaluation de la force des mots de passe.
-     * Cette classe est conçue pour être testable et indépendante de l'interface utilisateur.
-     */
-    private static class PasswordService {
-        private final SecureRandom secureRandom;
-
-        // --- Ensembles de caractères pour la génération de mots de passe / Character sets for password generation ---
-        private static final String UPPERCASE_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-        private static final String LOWERCASE_CHARS = "abcdefghijklmnopqrstuvwxyz";
-        private static final String NUMBERS_CHARS = "0123456789";
-        private static final String SYMBOLS_CHARS = "!@#$%^&*()_-+=<>?/{}[]|";
-
-        // --- Constantes pour l'évaluation de la force des mots de passe / Constants for password strength evaluation ---
-        private static final int SCORE_THRESHOLD_VERY_STRONG = 45;
-        private static final int SCORE_THRESHOLD_STRONG = 30;
-        private static final int SCORE_THRESHOLD_MEDIUM = 15;
-
-        // --- Listes pour les pénalités d'évaluation de la force / Lists for strength evaluation penalties ---
-        private static final String[] COMMON_SEQUENCES_LOWER = {
-            "abc", "bcd", "cde", "def", "efg", "fgh", "ghi", "hij", "ijk", "jkl", "klm", "lmn", "mno", "nop", "opq", "pqr", "qrs", "rst", "stu", "tuv", "uvw", "vwx", "wxy", "xyz",
-            "qwe", "wer", "ert", "rty", "tyu", "yui", "uio", "iop",
-            "asd", "sdf", "dfg", "fgh", "ghj", "hjk", "jkl",
-            "zxc", "xcv", "cvb", "vbn", "bnm"
-        };
-        private static final String[] COMMON_SEQUENCES_NUM = {"123", "234", "345", "456", "567", "678", "789", "890", "098", "987", "876", "765", "654", "543", "432", "321"};
-        private static final String[] COMMON_WEAK_WORDS = {"password", "pass", "admin", "administrator", "user", "username", "login", "logon", "guest", "test", "secret", "qwerty", "azerty", "12345", "123456", "1234567", "12345678", "123456789", "root", "support", "service", "welcome", "example", "demo", "changeme"};
-
-        /**
-         * Constructs a PasswordService and initializes {@link SecureRandom}.
-         * Construit un PasswordService et initialise {@link SecureRandom}.
-         */
-        public PasswordService() {
-            this.secureRandom = new SecureRandom();
-        }
-
-        /**
-         * Filters a character set by removing specified characters.
-         * This ensures that excluded characters (e.g., ambiguous ones) are not used.
-         * Filtre un ensemble de caractères en supprimant les caractères spécifiés.
-         * Cela garantit que les caractères exclus (par exemple, les caractères ambigus) ne sont pas utilisés.
-         *
-         * @param charSet The original character set string.
-         * @param excludeChars The string of characters to exclude. Can be null or empty.
-         * @return A new string with excluded characters removed. Returns the original charSet if excludeChars is null/empty.
-         * @param charSet La chaîne de caractères de l'ensemble original.
-         * @param excludeChars La chaîne de caractères à exclure. Peut être null ou vide.
-         * @return Une nouvelle chaîne sans les caractères exclus. Retourne l'ensemble original si excludeChars est null/vide.
-         */
-        private String filterChars(final String charSet, final String excludeChars) {
-            if (excludeChars == null || excludeChars.isEmpty()) {
-                return charSet;
-            }
-            final StringBuilder filtered = new StringBuilder();
-            for (int i = 0; i < charSet.length(); i++) {
-                final char c = charSet.charAt(i);
-                if (excludeChars.indexOf(c) == -1) { // If char is not in excludeChars
-                    filtered.append(c);
-                }
-            }
-            return filtered.toString();
-        }
-
-        /**
-         * Generates a password based on the specified criteria.
-         *
-         * @param length       The desired length of the password.
-         * @param useUpperCase Whether to include uppercase letters.
-         * @param useLowerCase Whether to include lowercase letters.
-         * @param useNumbers   Whether to include numbers.
-         * @param useSymbols   Whether to include symbols.
-         * @param excludeChars Characters to exclude from the generated password.
-         * @return The generated password, or {@code null} if no valid character types are selected or the
-         * effective character pool becomes empty after exclusions.
-         * Génère un mot de passe basé sur les critères spécifiés.
-         *
-         * @param length       La longueur désirée du mot de passe.
-         * @param useUpperCase Si les lettres majuscules doivent être incluses.
-         * @param useLowerCase Si les lettres minuscules doivent être incluses.
-         * @param useNumbers   Si les chiffres doivent être inclus.
-         * @param useSymbols   Si les symboles doivent être inclus.
-         * @param excludeChars Caractères à exclure du mot de passe généré.
-         * @return Le mot de passe généré, ou {@code null} si aucun type de caractère valide n'est sélectionné
-         * ou si le pool de caractères effectif devient vide après les exclusions.
-         */
-        public String generatePassword(final int length, final boolean useUpperCase, final boolean useLowerCase, final boolean useNumbers, final boolean useSymbols, final String excludeChars) {
-            // Check if at least one character type is selected
-            if (!useUpperCase && !useLowerCase && !useNumbers && !useSymbols) {
-                return null;
-            }
-
-            final StringBuilder charPool = new StringBuilder();
-            final List<Character> requiredChars = new ArrayList<Character>();
-
-            // Filter character sets based on exclusions and build the main character pool
-            final String filteredUpperCase = filterChars(UPPERCASE_CHARS, excludeChars);
-            final String filteredLowerCase = filterChars(LOWERCASE_CHARS, excludeChars);
-            final String filteredNumbers = filterChars(NUMBERS_CHARS, excludeChars);
-            final String filteredSymbols = filterChars(SYMBOLS_CHARS, excludeChars);
-
-            if (useUpperCase && !filteredUpperCase.isEmpty()) {
-                charPool.append(filteredUpperCase);
-                requiredChars.add(filteredUpperCase.charAt(secureRandom.nextInt(filteredUpperCase.length())));
-            }
-            if (useLowerCase && !filteredLowerCase.isEmpty()) {
-                charPool.append(filteredLowerCase);
-                requiredChars.add(filteredLowerCase.charAt(secureRandom.nextInt(filteredLowerCase.length())));
-            }
-            if (useNumbers && !filteredNumbers.isEmpty()) {
-                charPool.append(filteredNumbers);
-                requiredChars.add(filteredNumbers.charAt(secureRandom.nextInt(filteredNumbers.length())));
-            }
-            if (useSymbols && !filteredSymbols.isEmpty()) {
-                charPool.append(filteredSymbols);
-                requiredChars.add(filteredSymbols.charAt(secureRandom.nextInt(filteredSymbols.length())));
-            }
-
-            // If the character pool is empty after filtering/selection, we cannot generate a password
-            if (charPool.length() == 0) {
-                return null;
-            }
-
-            // Determine the actual password length, ensuring it's at least as long as the number of required unique characters
-            final int actualLength = Math.max(length, requiredChars.size());
-
-            final List<Character> passwordChars = new ArrayList<Character>(actualLength);
-
-            // Add all required characters first
-            passwordChars.addAll(requiredChars);
-
-            // Fill the remaining length with random characters from the combined pool
-            for (int i = requiredChars.size(); i < actualLength; i++) {
-                passwordChars.add(charPool.charAt(secureRandom.nextInt(charPool.length())));
-            }
-
-            // Shuffle the entire list of characters to ensure randomness
-            Collections.shuffle(passwordChars, secureRandom);
-
-            // Construct the final password string from the shuffled characters
-            final StringBuilder finalPassword = new StringBuilder(actualLength);
-            for (final Character ch : passwordChars) {
-                finalPassword.append(ch);
-            }
-
-            return finalPassword.toString();
-        }
-
-        /**
-         * Evaluates the strength of a given password and calculates its entropy.
-         * The strength is categorized into levels (Weak, Medium, Strong, Very Strong)
-         * and a quantitative entropy value (in bits) is provided.
-         * Évalue la force d'un mot de passe donné et calcule son entropie.
-         * La force est catégorisée en niveaux (Faible, Moyen, Fort, Très Fort)
-         * et une valeur d'entropie quantitative (en bits) est fournie.
-         *
-         * @param password The password string to evaluate.
-         * @return A {@link PasswordEvaluationResult} containing the strength level and entropy.
-         * @param password La chaîne du mot de passe à évaluer.
-         * @return Un {@link PasswordEvaluationResult} contenant le niveau de force et l'entropie.
-         */
-        public PasswordEvaluationResult evaluatePasswordStrength(final String password) {
-            if (password == null || password.isEmpty()) {
-                return new PasswordEvaluationResult(PasswordStrengthLevel.EMPTY, 0.0);
-            }
-
-            int score = 0;
-            final int length = password.length();
-
-            // --- Calcul de l'entropie / Entropy Calculation ---
-            // A simplified calculation based on character types present.
-            // Une estimation simplifiée basée sur les types de caractères présents.
-            int estimatedCharsetSize = 0;
-            boolean hasLowerCase = false;
-            boolean hasUpperCase = false;
-            boolean hasDigit = false;
-            boolean hasSymbol = false;
-
-            for (int i = 0; i < length; i++) {
-                final char c = password.charAt(i);
-                if (Character.isLowerCase(c)) {
-                    hasLowerCase = true;
-                } else if (Character.isUpperCase(c)) {
-                    hasUpperCase = true;
-                } else if (Character.isDigit(c)) {
-                    hasDigit = true;
-                } else if (SYMBOLS_CHARS.indexOf(c) != -1) {
-                    hasSymbol = true;
-                }
-            }
-
-            if (hasLowerCase) { estimatedCharsetSize += 26; }
-            if (hasUpperCase) { estimatedCharsetSize += 26; }
-            if (hasDigit) { estimatedCharsetSize += 10; }
-            if (hasSymbol) { estimatedCharsetSize += SYMBOLS_CHARS.length(); }
-
-            double entropy = 0.0;
-            // Entropy = length * log2(charset_size)
-            // Math.log is natural logarithm (ln), so log2(x) = ln(x) / ln(2)
-            if (estimatedCharsetSize > 1) { // Avoid log(0) or log(1) issues
-                entropy = length * (Math.log(estimatedCharsetSize) / Math.log(2));
-            }
-
-
-            // --- Évaluation de la force (scoring) / Strength Evaluation (Scoring) ---
-            if (length < 8) { // Passwords shorter than 8 characters are considered weak
-                return new PasswordEvaluationResult(PasswordStrengthLevel.WEAK, entropy);
-            }
-
-            // Penalty if no character types are found (should be rare with generated passwords)
-            if (!hasLowerCase && !hasUpperCase && !hasDigit && !hasSymbol) {
-                 return new PasswordEvaluationResult(PasswordStrengthLevel.WEAK, entropy);
-            }
-
-            // Score based on length
-            score += calculateLengthScore(length);
-
-            // Score based on presence of character types
-            if (hasLowerCase) { score += 5; }
-            if (hasUpperCase) { score += 8; }
-            if (hasDigit) { score += 8; }
-            if (hasSymbol) { score += 12; }
-
-            // Bonus for number of distinct character types
-            int typesCount = 0;
-            if (hasLowerCase) { typesCount++; }
-            if (hasUpperCase) { typesCount++; }
-            if (hasDigit) { typesCount++; }
-            if (hasSymbol) { typesCount++; }
-
-            score += calculateDistinctCharacterTypesBonus(typesCount, length);
-
-            // Apply penalties for common weaknesses
-            score = applyPenalties(password, score);
-
-
-            // Final categorization based on score and character types
-            final PasswordStrengthLevel strengthLevel;
-            if (typesCount == 4 && score >= SCORE_THRESHOLD_VERY_STRONG) {
-                strengthLevel = PasswordStrengthLevel.VERY_STRONG;
-            } else if (typesCount >= 3 && score >= SCORE_THRESHOLD_STRONG) {
-                strengthLevel = PasswordStrengthLevel.STRONG;
-            } else if (typesCount >= 2 && score >= SCORE_THRESHOLD_MEDIUM) {
-                strengthLevel = PasswordStrengthLevel.MEDIUM;
-            } else {
-                strengthLevel = PasswordStrengthLevel.WEAK;
-            }
-            return new PasswordEvaluationResult(strengthLevel, entropy);
-        }
-
-        /**
-         * Calculates score based on password length. Longer passwords get higher scores.
-         * Calcule le score basé sur la longueur du mot de passe. Les mots de passe plus longs obtiennent des scores plus élevés.
-         * @param length The length of the password.
-         * @return The score contribution from length.
-         * @param length La longueur du mot de passe.
-         * @return La contribution au score de la longueur.
-         */
-        private int calculateLengthScore(final int length) {
-            if (length >= 8 && length <= 9) { return -5; } // Slight penalty for bare minimum acceptable length
-            if (length >= 10 && length <= 12) { return 10; }
-            if (length >= 13 && length <= 15) { return 15; }
-            if (length >= 16 && length <= 20) { return 20; }
-            if (length > 20) { return 25; }
-            return 0;
-        }
-
-        /**
-         * Calculates bonus score based on the number of distinct character types used.
-         * Calcule le score bonus basé sur le nombre de types de caractères distincts utilisés.
-         * @param typesCount The number of distinct character types (lowercase, uppercase, digit, symbol).
-         * @param length The length of the password.
-         * @return The score contribution from distinct character types.
-         * @param typesCount Le nombre de types de caractères distincts (minuscules, majuscules, chiffres, symboles).
-         * @param length La longueur du mot de passe.
-         * @return La contribution au score des types de caractères distincts.
-         */
-        private int calculateDistinctCharacterTypesBonus(final int typesCount, final int length) {
-            if (typesCount == 1 && length >= 8) { return -5; } // Penalty if only one type, even if long
-            if (typesCount == 2) { return 7; }
-            if (typesCount == 3) { return 12; }
-            if (typesCount == 4) { return 18; }
-            return 0;
-        }
-
-        /**
-         * Applies penalties to the score based on common password weaknesses like sequences, weak words, and repetitions.
-         * Applique des pénalités au score en fonction des faiblesses courantes des mots de passe
-         * comme les séquences, les mots faibles et les répétitions.
-         * @param password The password string.
-         * @param currentScore The current score before applying penalties.
-         * @return The updated score after applying penalties.
-         * @param password La chaîne du mot de passe.
-         * @param currentScore Le score actuel avant l'application des pénalités.
-         * @return Le score mis à jour après l'application des pénalités.
-         */
-        private int applyPenalties(final String password, int currentScore) {
-            final String passwordLower = password.toLowerCase();
-            final int length = password.length();
-
-            // Penalty for common sequences (letters or numbers)
-            boolean sequenceFound = false;
-            for (int i = 0; i < COMMON_SEQUENCES_LOWER.length; i++) {
-                final String seq = COMMON_SEQUENCES_LOWER[i];
-                if (passwordLower.contains(seq)) {
-                    currentScore -= 7;
-                    sequenceFound = true;
-                    break;
-                }
-            }
-            if (!sequenceFound) {
-                for (int i = 0; i < COMMON_SEQUENCES_NUM.length; i++) {
-                    final String seq = COMMON_SEQUENCES_NUM[i];
-                    if (password.contains(seq)) {
-                        currentScore -= 7;
-                        break;
-                    }
-                }
-            }
-
-            // Penalty for common weak words
-            for (int i = 0; i < COMMON_WEAK_WORDS.length; i++) {
-                final String weakWord = COMMON_WEAK_WORDS[i];
-                if (passwordLower.contains(weakWord)) {
-                    currentScore -= 12;
-                    break;
-                }
-            }
-
-            // Penalty for excessive character repetition (3+ consecutive identical chars)
-            for (int i = 0; i < length - 2; i++) {
-                if (password.charAt(i) == password.charAt(i + 1) &&
-                    password.charAt(i + 1) == password.charAt(i + 2)) {
-                    currentScore -= 6;
-                    break;
-                }
-            }
-
-            // Penalty for overall character repetition (if one char is > 1/3 of password)
-            if (length > 5) {
-                final Map<Character, Integer> charCounts = new HashMap<Character, Integer>();
-                for (int i = 0; i < password.length(); i++) {
-                    final char c = password.charAt(i);
-                    // Java 6 compatible way to update map count. Autoboxing handles Integer conversion.
-                    if (charCounts.containsKey(c)) {
-                        charCounts.put(c, charCounts.get(c) + 1);
-                    } else {
-                        charCounts.put(c, 1);
-                    }
-                }
-                // Iterate over Map.EntrySet as direct for-each over Map is Java 8+
-                final java.util.Iterator<Map.Entry<Character, Integer>> it = charCounts.entrySet().iterator();
-                while (it.hasNext()) {
-                    final Map.Entry<Character, Integer> entry = it.next();
-                    if (entry.getValue().intValue() > length / 3) {
-                        currentScore -= (entry.getValue().intValue() - (length / 3)) * 3;
-                    }
-                }
-            }
-            return currentScore;
-        }
-    }
-
-    /**
-     * Constructor for PasswordGeneratorApp.
-     * Initializes the password service and history, then builds the UI.
-     * Constructeur de PasswordGeneratorApp.
-     * Initialise le service de mots de passe et l'historique, puis construit l'interface utilisateur.
-     */
-    public PasswordGeneratorApp() {
-        this.passwordService = new PasswordService();
-        this.passwordHistory = new ArrayList<String>(); // Initialize history
-        initializeUI();
-    }
-
-    /**
-     * Initializes and configures all UI components.
-     * Applies a modern visual theme and attractive colors.
-     * Initialise et configure tous les composants de l'interface utilisateur.
-     * Applique un thème visuel moderne et des couleurs attrayantes.
-     */
-    private void initializeUI() {
-        setupFrame();
-        final JPanel mainPanel = createMainPanel();
-        mainPanel.add(createTitleLabel(), BorderLayout.NORTH);
-        mainPanel.add(createOptionsPanel(), BorderLayout.CENTER);
-        mainPanel.add(createBottomPanel(), BorderLayout.SOUTH);
-
-        frame.add(mainPanel);
-        frame.setVisible(true);
-    }
-
-    /**
-     * Sets up the main JFrame properties.
-     * Configure les propriétés de la JFrame principale.
-     */
-    private void setupFrame() {
+    public static void main(String[] args) {
         try {
-            // Attempt to set Nimbus Look and Feel for a more modern appearance
-            for (final UIManager.LookAndFeelInfo info : UIManager.getInstalledLookAndFeels()) {
-                if ("Nimbus".equals(info.getName())) {
-                    UIManager.setLookAndFeel(info.getClassName());
-                    break;
+            UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
+        } catch (Exception ignored) {
+        }
+
+        SwingUtilities.invokeLater(() -> {
+            MainFrame frame = new MainFrame();
+            frame.setVisible(true);
+        });
+    }
+
+    //==========================
+    // MODEL & LOGIC (Inchangé)
+    //==========================
+
+    record PasswordGenerationConfig(
+            int length,
+            boolean includeUppercase,
+            boolean includeLowercase,
+            boolean includeDigits,
+            boolean includeSymbols,
+            boolean avoidAmbiguous,
+            boolean requireEachSelectedSet,
+            boolean pronounceableLike,
+            String customCharacters,
+            String excludeCharacters) {
+
+        PasswordGenerationConfig() {
+            this(16, true, true, true, true, true, true, false, "", "");
+        }
+
+        PasswordGenerationConfig cloneConfig() {
+            return new PasswordGenerationConfig(
+                    this.length,
+                    this.includeUppercase,
+                    this.includeLowercase,
+                    this.includeDigits,
+                    this.includeSymbols,
+                    this.avoidAmbiguous,
+                    this.requireEachSelectedSet,
+                    this.pronounceableLike,
+                    this.customCharacters,
+                    this.excludeCharacters
+            );
+        }
+    }
+
+    record PasswordEntry(String password, LocalDateTime createdAt, PasswordGenerationConfig configSnapshot) {
+        PasswordEntry(String password, PasswordGenerationConfig configSnapshot) {
+            this(password, LocalDateTime.now(), configSnapshot);
+        }
+
+        String toDisplayString() {
+            DateTimeFormatter fmt = DateTimeFormatter.ofPattern("HH:mm:ss");
+            return "[" + createdAt.format(fmt) + "]  " + password;
+        }
+    }
+
+    static class PasswordGenerator {
+        private static final String UPPERCASE = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+        private static final String LOWERCASE = "abcdefghijklmnopqrstuvwxyz";
+        private static final String DIGITS = "0123456789";
+        private static final String SYMBOLS = "!@#$%^&*()-_=+[]{};:,.<>/?";
+        private static final String AMBIGUOUS = "O0Il1|";
+
+        private final SecureRandom random = new SecureRandom();
+
+        String generate(PasswordGenerationConfig cfg) throws IllegalArgumentException {
+            List<String> pools = new ArrayList<>();
+
+            String upper = UPPERCASE;
+            String lower = LOWERCASE;
+            String digits = DIGITS;
+            String symbols = SYMBOLS;
+
+            if (cfg.avoidAmbiguous()) {
+                upper = removeAmbiguous(upper);
+                lower = removeAmbiguous(lower);
+                digits = removeAmbiguous(digits);
+            }
+
+            if (cfg.includeUppercase()) pools.add(upper);
+            if (cfg.includeLowercase()) pools.add(lower);
+            if (cfg.includeDigits()) pools.add(digits);
+            if (cfg.includeSymbols()) pools.add(symbols);
+
+            String customPool = cfg.customCharacters();
+            if (!customPool.trim().isEmpty()) {
+                pools.add(customPool);
+            }
+            
+            String excluded = cfg.excludeCharacters();
+            if (!excluded.isEmpty()) {
+                List<String> cleanedPools = new ArrayList<>();
+                for (String pool : pools) {
+                    cleanedPools.add(removeExcluded(pool, excluded));
+                }
+                pools = cleanedPools;
+            }
+
+            if (pools.stream().allMatch(String::isEmpty)) {
+                throw new IllegalArgumentException("Veuillez sélectionner au moins un type de caractère utilisable.");
+            }
+            if (cfg.length() <= 0) {
+                throw new IllegalArgumentException("La longueur du mot de passe doit être supérieure à 0.");
+            }
+
+            StringBuilder allChars = new StringBuilder();
+            for (String p : pools) {
+                allChars.append(p);
+            }
+
+            if (allChars.length() == 0) {
+                throw new IllegalArgumentException("Aucun caractère disponible pour générer le mot de passe.");
+            }
+
+            char[] password = new char[cfg.length()];
+            int index = 0;
+
+            if (cfg.pronounceableLike() && (cfg.includeLowercase() || cfg.includeUppercase())) {
+                String vowels = "aeiou";
+                String consonants = "bcdfghjklmnpqrstvwxyz";
+                String vowelPool = removeExcluded(cfg.includeUppercase() ? vowels + vowels.toUpperCase() : vowels, excluded);
+                String consPool = removeExcluded(cfg.includeUppercase() ? consonants + consonants.toUpperCase() : consonants, excluded);
+
+                for (int i = 0; i < cfg.length(); i++) {
+                    String pool = (i % 2 == 0) ? consPool : vowelPool;
+                    if (pool.isEmpty()) pool = allChars.toString();
+                    password[i] = pool.charAt(random.nextInt(pool.length()));
+                }
+
+                if (cfg.requireEachSelectedSet()) enforcePools(password, pools);
+                return new String(password);
+            }
+
+            if (cfg.requireEachSelectedSet()) {
+                for (String pool : pools) {
+                    if (index >= cfg.length()) break;
+                    if (!pool.isEmpty()) {
+                        password[index++] = pool.charAt(random.nextInt(pool.length()));
+                    }
                 }
             }
-        } catch (final Exception e) {
-            System.err.println(NIMBUS_LOOK_AND_FEEL_ERROR + e.getMessage());
+
+            while (index < cfg.length()) {
+                password[index++] = allChars.charAt(random.nextInt(allChars.length()));
+            }
+
+            shuffle(password);
+            return new String(password);
         }
 
-        frame = new JFrame(APP_TITLE);
-        frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        frame.setSize(FRAME_WIDTH, FRAME_HEIGHT);
-        frame.setResizable(false);
-        frame.setLocationRelativeTo(null); // Center on screen
-    }
-
-    /**
-     * Creates the main content panel with a custom gradient background.
-     * Crée le panneau de contenu principal avec un fond dégradé personnalisé.
-     * @return The configured JPanel.
-     * @return Le JPanel configuré.
-     */
-    private JPanel createMainPanel() {
-        final JPanel mainPanel = new JPanel(new BorderLayout()) {
-            @Override
-            protected void paintComponent(final Graphics g) {
-                super.paintComponent(g);
-                final Graphics2D g2d = (Graphics2D) g;
-                g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-                final GradientPaint gp = new GradientPaint(0, 0, MAIN_GRADIENT_START, 0, getHeight(), MAIN_GRADIENT_END);
-                g2d.setPaint(gp);
-                g2d.fillRect(0, 0, getWidth(), getHeight());
+        private String removeAmbiguous(String s) {
+            StringBuilder sb = new StringBuilder();
+            for (char c : s.toCharArray()) {
+                if (AMBIGUOUS.indexOf(c) < 0) sb.append(c);
             }
-        };
-        mainPanel.setBorder(BorderFactory.createEmptyBorder(BORDER_PADDING, BORDER_PADDING, BORDER_PADDING, BORDER_PADDING));
-        return mainPanel;
-    }
-
-    /**
-     * Creates the title label for the application.
-     * Crée le titre de l'application.
-     * @return The configured JLabel.
-     * @return Le JLabel configuré.
-     */
-    private JLabel createTitleLabel() {
-        final JLabel titleLabel = new JLabel("Générateur de Mots de Passe", SwingConstants.CENTER);
-        titleLabel.setFont(new Font("Inter", Font.BOLD, 30));
-        titleLabel.setForeground(TITLE_COLOR);
-        return titleLabel;
-    }
-
-    /**
-     * Creates the panel containing password generation options (length, char types, exclusions).
-     * Crée le panneau contenant les options de génération de mot de passe (longueur, types de caractères, exclusions).
-     * @return The configured JPanel.
-     * @return Le JPanel configuré.
-     */
-    private JPanel createOptionsPanel() {
-        final JPanel optionsPanel = new JPanel(new GridBagLayout());
-        optionsPanel.setOpaque(false);
-        final GridBagConstraints gbc = new GridBagConstraints();
-        gbc.insets = new Insets(INSETS_VERTICAL, INSETS_HORIZONTAL, INSETS_VERTICAL, INSETS_HORIZONTAL);
-        gbc.fill = GridBagConstraints.HORIZONTAL;
-        gbc.anchor = GridBagConstraints.WEST;
-
-        // Length Slider Section
-        gbc.gridx = 0;
-        gbc.gridy = 0;
-        gbc.weightx = 0.3;
-        final JLabel lengthLabelText = new JLabel(LENGTH_LABEL_TEXT, SwingConstants.RIGHT);
-        styleLabel(lengthLabelText);
-        optionsPanel.add(lengthLabelText, gbc);
-
-        gbc.gridx = 1;
-        gbc.gridy = 0;
-        gbc.weightx = 0.7;
-        lengthSlider = new JSlider(JSlider.HORIZONTAL, SLIDER_MIN_LENGTH, SLIDER_MAX_LENGTH, SLIDER_DEFAULT_LENGTH);
-        styleSlider(lengthSlider);
-        optionsPanel.add(lengthSlider, gbc);
-
-        // Checkboxes Section
-        upperCaseCheckBox = createStyledCheckBox(UPPERCASE_CHECKBOX_TEXT, true);
-        lowerCaseCheckBox = createStyledCheckBox(LOWERCASE_CHECKBOX_TEXT, true);
-        numbersCheckBox = createStyledCheckBox(NUMBERS_CHECKBOX_TEXT, true);
-        symbolsCheckBox = createStyledCheckBox(SYMBOLS_CHECKBOX_TEXT, true);
-
-        gbc.gridx = 0;
-        gbc.gridy = 1;
-        gbc.gridwidth = 2;
-        optionsPanel.add(upperCaseCheckBox, gbc);
-
-        gbc.gridy = 2;
-        optionsPanel.add(lowerCaseCheckBox, gbc);
-
-        gbc.gridy = 3;
-        optionsPanel.add(numbersCheckBox, gbc);
-
-        gbc.gridy = 4;
-        optionsPanel.add(symbolsCheckBox, gbc);
-
-        // Exclude Characters Field Section
-        gbc.gridx = 0;
-        gbc.gridy = 5;
-        gbc.gridwidth = 1;
-        final JLabel excludeLabel = new JLabel(EXCLUDE_CHARS_LABEL_TEXT, SwingConstants.RIGHT);
-        styleLabel(excludeLabel);
-        optionsPanel.add(excludeLabel, gbc);
-
-        excludeCharsField = new JTextField(15);
-        excludeCharsField.setFont(new Font("Monospaced", Font.PLAIN, 14));
-        excludeCharsField.setBackground(EXCLUDE_FIELD_BG);
-        excludeCharsField.setForeground(EXCLUDE_FIELD_TEXT_COLOR);
-        excludeCharsField.setBorder(BorderFactory.createCompoundBorder(
-            BorderFactory.createLineBorder(EXCLUDE_FIELD_BORDER_COLOR, 1),
-            BorderFactory.createEmptyBorder(5, 8, 5, 8)
-        ));
-        gbc.gridx = 1;
-        gbc.gridy = 5;
-        optionsPanel.add(excludeCharsField, gbc);
-
-        // Error Label Section
-        charSetErrorLabel = new JLabel(" "); // Placeholder for error messages
-        charSetErrorLabel.setFont(new Font("Inter", Font.ITALIC, 13));
-        charSetErrorLabel.setForeground(ERROR_TEXT_COLOR);
-        gbc.gridy = 6;
-        gbc.insets = new Insets(0, INSETS_HORIZONTAL, 5, INSETS_HORIZONTAL);
-        optionsPanel.add(charSetErrorLabel, gbc);
-
-        return optionsPanel;
-    }
-
-    /**
-     * Creates the bottom panel containing the password display, strength info, and action buttons.
-     * Crée le panneau inférieur contenant l'affichage du mot de passe, les informations de force et les boutons d'action.
-     * @return The configured JPanel.
-     * @return Le JPanel configuré.
-     */
-    private JPanel createBottomPanel() {
-        final JPanel bottomPanel = new JPanel(new GridBagLayout());
-        bottomPanel.setOpaque(false);
-        final GridBagConstraints gbcBottom = new GridBagConstraints();
-        gbcBottom.insets = new Insets(INSETS_VERTICAL, INSETS_VERTICAL, INSETS_VERTICAL, INSETS_VERTICAL);
-        gbcBottom.fill = GridBagConstraints.HORIZONTAL;
-
-        // Password Display Field
-        passwordDisplayField = new JTextField(35);
-        passwordDisplayField.setEditable(true); // Enabled for real-time strength feedback
-        passwordDisplayField.setFont(new Font("Monospaced", Font.BOLD, 22));
-        passwordDisplayField.setBackground(PASSWORD_FIELD_BG);
-        passwordDisplayField.setForeground(PASSWORD_FIELD_TEXT_COLOR);
-        passwordDisplayField.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(PASSWORD_FIELD_BORDER_COLOR, 1),
-                BorderFactory.createEmptyBorder(10, 12, 10, 12)
-        ));
-        passwordDisplayField.setHorizontalAlignment(JTextField.CENTER);
-        gbcBottom.gridx = 0;
-        gbcBottom.gridy = 0;
-        gbcBottom.gridwidth = 3; // Spans across all three columns for buttons below
-        gbcBottom.weightx = 1.0;
-        bottomPanel.add(passwordDisplayField, gbcBottom);
-
-        // Add DocumentListener for real-time strength feedback
-        passwordDisplayField.getDocument().addDocumentListener(new DocumentListener() {
-            public void changedUpdate(final DocumentEvent e) { updateStrengthFromField(); }
-            public void removeUpdate(final DocumentEvent e) { updateStrengthFromField(); }
-            public void insertUpdate(final DocumentEvent e) { updateStrengthFromField(); }
-
-            private void updateStrengthFromField() {
-                final String currentPassword = passwordDisplayField.getText();
-                final PasswordEvaluationResult result = passwordService.evaluatePasswordStrength(currentPassword);
-                updateStrengthLabel(result.strengthLevel, result.entropy);
+            return sb.toString();
+        }
+        
+        private String removeExcluded(String s, String excluded) {
+            StringBuilder sb = new StringBuilder();
+            for (char c : s.toCharArray()) {
+                if (excluded.indexOf(c) < 0) sb.append(c);
             }
-        });
-
-
-        // Password Strength Label
-        strengthLabel = new JLabel(STRENGTH_LABEL_PREFIX + PasswordStrengthLevel.EMPTY.getDisplayName(), SwingConstants.CENTER);
-        strengthLabel.setFont(new Font("Inter", Font.BOLD, 16));
-        strengthLabel.setForeground(PasswordStrengthLevel.EMPTY.getDisplayColor());
-        gbcBottom.gridy = 1;
-        gbcBottom.insets = new Insets(8, INSETS_VERTICAL, 0, INSETS_VERTICAL);
-        bottomPanel.add(strengthLabel, gbcBottom);
-
-        // Entropy Label
-        entropyLabel = new JLabel(ENTROPY_LABEL_PREFIX + "0.00 bits", SwingConstants.CENTER);
-        entropyLabel.setFont(new Font("Inter", Font.PLAIN, 14));
-        entropyLabel.setForeground(ENTROPY_LABEL_COLOR);
-        gbcBottom.gridy = 2;
-        gbcBottom.insets = new Insets(0, INSETS_VERTICAL, 12, INSETS_VERTICAL);
-        bottomPanel.add(entropyLabel, gbcBottom);
-
-
-        // Buttons Section
-        generateButton = createStyledButton(GENERATE_BUTTON_TEXT);
-        generateButton.addActionListener(new ActionListener() {
-            public void actionPerformed(final ActionEvent e) { handleGeneratePassword(); }
-        });
-        gbcBottom.gridx = 0;
-        gbcBottom.gridy = 3;
-        gbcBottom.gridwidth = 1;
-        gbcBottom.weightx = 0.33;
-        gbcBottom.insets = new Insets(15, INSETS_VERTICAL, 0, 5); // More top margin
-        bottomPanel.add(generateButton, gbcBottom);
-
-        copyButton = createStyledButton(COPY_BUTTON_TEXT);
-        copyButton.addActionListener(new ActionListener() {
-            public void actionPerformed(final ActionEvent e) { handleCopyPassword(); }
-        });
-        gbcBottom.gridx = 1;
-        gbcBottom.gridy = 3;
-        gbcBottom.weightx = 0.33;
-        gbcBottom.insets = new Insets(15, 5, 0, 5);
-        bottomPanel.add(copyButton, gbcBottom);
-
-        showHistoryButton = createStyledButton(HISTORY_BUTTON_TEXT);
-        showHistoryButton.addActionListener(new ActionListener() {
-            public void actionPerformed(final ActionEvent e) { showPasswordHistory(); }
-        });
-        gbcBottom.gridx = 2;
-        gbcBottom.gridy = 3;
-        gbcBottom.weightx = 0.34;
-        gbcBottom.insets = new Insets(15, 5, 0, INSETS_VERTICAL);
-        bottomPanel.add(showHistoryButton, gbcBottom);
-
-        return bottomPanel;
-    }
-
-    /**
-     * Styles a generic JLabel component with consistent font and color.
-     * Style un composant JLabel générique avec une police et une couleur cohérentes.
-     * @param label The JLabel to style.
-     * @param label Le JLabel à styliser.
-     */
-    private void styleLabel(final JLabel label) {
-        label.setForeground(LABEL_COLOR);
-        label.setFont(new Font("Inter", Font.PLAIN, 16));
-    }
-
-    /**
-     * Styles a JSlider component for consistent appearance and behavior.
-     * Style un composant JSlider pour une apparence et un comportement cohérents.
-     * @param slider The JSlider to style.
-     * @param slider Le JSlider à styliser.
-     */
-    private void styleSlider(final JSlider slider) {
-        slider.setMajorTickSpacing(4);
-        slider.setMinorTickSpacing(1);
-        slider.setPaintTicks(true);
-        slider.setPaintLabels(true);
-        slider.setSnapToTicks(true);
-        slider.setOpaque(false);
-        slider.setForeground(LABEL_COLOR); // Ticks and labels color
-        slider.setFont(new Font("Inter", Font.PLAIN, 12));
-    }
-
-    /**
-     * Creates and styles a JCheckBox with consistent appearance.
-     * Crée et stylise une JCheckBox avec une apparence cohérente.
-     * @param text The text for the checkbox.
-     * @param selected The initial selected state.
-     * @return The styled JCheckBox.
-     * @param text Le texte de la case à cocher.
-     * @param selected L'état initial sélectionné.
-     * @return La JCheckBox stylisée.
-     */
-    private JCheckBox createStyledCheckBox(final String text, final boolean selected) {
-        final JCheckBox checkBox = new JCheckBox(text, selected);
-        checkBox.setOpaque(false);
-        checkBox.setForeground(LABEL_COLOR);
-        checkBox.setFont(new Font("Inter", Font.PLAIN, 16));
-        checkBox.setFocusPainted(false);
-        return checkBox;
-    }
-
-    /**
-     * Creates and styles a JButton with consistent appearance and hover effects.
-     * Crée et stylise un JButton avec une apparence et des effets de survol cohérents.
-     * @param text The text for the button.
-     * @return The styled JButton.
-     * @param text Le texte du bouton.
-     * @return Le JButton stylisé.
-     */
-    private JButton createStyledButton(final String text) {
-        final JButton button = new JButton(text);
-
-        button.setFont(new Font("Inter", Font.BOLD, 16));
-        button.setBackground(BUTTON_NORMAL_BG);
-        button.setForeground(BUTTON_FOREGROUND_COLOR);
-        button.setFocusPainted(false);
-        button.setCursor(new Cursor(Cursor.HAND_CURSOR));
-
-        final Border lineBorder = BorderFactory.createLineBorder(BUTTON_BORDER_COLOR, 1);
-        final Border emptyBorder = BorderFactory.createEmptyBorder(12, 22, 12, 22);
-        button.setBorder(BorderFactory.createCompoundBorder(lineBorder, emptyBorder));
-
-        button.addMouseListener(new MouseAdapter() {
-            @Override
-            public void mouseEntered(final MouseEvent evt) {
-                button.setBackground(BUTTON_HOVER_BG);
-            }
-
-            @Override
-            public void mouseExited(final MouseEvent evt) {
-                button.setBackground(BUTTON_NORMAL_BG);
-            }
-        });
-        return button;
-    }
-
-    /**
-     * Handles the password generation request.
-     * Retrieves options from the UI, calls the PasswordService, and updates the display.
-     * Gère la requête de génération de mot de passe.
-     * Récupère les options de l'interface utilisateur, appelle le PasswordService et met à jour l'affichage.
-     */
-    private void handleGeneratePassword() {
-        charSetErrorLabel.setText(" "); // Clear previous error
-
-        final boolean useUpperCase = upperCaseCheckBox.isSelected();
-        final boolean useLowerCase = lowerCaseCheckBox.isSelected();
-        final boolean useNumbers = numbersCheckBox.isSelected();
-        final boolean useSymbols = symbolsCheckBox.isSelected();
-        final String excludeChars = excludeCharsField.getText(); // Get excluded characters from UI
-
-        if (!useUpperCase && !useLowerCase && !useNumbers && !useSymbols) {
-            charSetErrorLabel.setText(ERROR_NO_CHARSET_SELECTED);
-            passwordDisplayField.setText("");
-            updateStrengthLabel(PasswordStrengthLevel.EMPTY, 0.0);
-            return;
+            return sb.toString();
         }
 
-        final int length = lengthSlider.getValue();
-        final String generatedPassword = passwordService.generatePassword(length, useUpperCase, useLowerCase, useNumbers, useSymbols, excludeChars);
-
-        if (generatedPassword != null) {
-            passwordDisplayField.setText(generatedPassword);
-            passwordHistory.add(0, generatedPassword); // Add to history (most recent first)
-            if (passwordHistory.size() > PASSWORD_HISTORY_MAX_SIZE) { // Keep history limited
-                passwordHistory.remove(passwordHistory.size() - 1);
+        private void shuffle(char[] array) {
+            for (int i = array.length - 1; i > 0; i--) {
+                int j = random.nextInt(i + 1);
+                char tmp = array[i];
+                array[i] = array[j];
+                array[j] = tmp;
             }
-            final PasswordEvaluationResult result = passwordService.evaluatePasswordStrength(generatedPassword);
-            updateStrengthLabel(result.strengthLevel, result.entropy);
-        } else {
-            passwordDisplayField.setText("");
-            updateStrengthLabel(PasswordStrengthLevel.EMPTY, 0.0);
-             JOptionPane.showMessageDialog(frame,
-                ERROR_INTERNAL_GEN_MESSAGE,
-                ERROR_INTERNAL_GEN_TITLE,
-                JOptionPane.ERROR_MESSAGE);
+        }
+
+        private void enforcePools(char[] password, List<String> pools) {
+            String pwd = new String(password);
+            for (String pool : pools) {
+                if (!pool.isEmpty() && !containsAny(pwd, pool)) {
+                    int pos = random.nextInt(password.length);
+                    password[pos] = pool.charAt(random.nextInt(pool.length()));
+                }
+            }
+            shuffle(password);
+        }
+
+        private boolean containsAny(String s, String pool) {
+            for (char c : s.toCharArray()) {
+                if (pool.indexOf(c) >= 0) return true;
+            }
+            return false;
         }
     }
 
-    /**
-     * Updates the strength label text and color based on the evaluated strength, and updates entropy label.
-     * Met à jour le texte et la couleur du label de force en fonction de la force évaluée, et met à jour le label d'entropie.
-     * @param strengthLevel The evaluated password strength.
-     * @param entropy The calculated entropy in bits.
-     * @param strengthLevel La force évaluée du mot de passe.
-     * @param entropy L'entropie calculée en bits.
-     */
-    private void updateStrengthLabel(final PasswordStrengthLevel strengthLevel, final double entropy) {
-        final PasswordStrengthLevel displayStrength = (strengthLevel == null) ? PasswordStrengthLevel.EMPTY : strengthLevel;
+    static class EntropyCalculator {
+        static double calculate(String password, PasswordGenerationConfig cfg) {
+            if (password == null || password.isEmpty()) return 0.0;
 
-        strengthLabel.setText(STRENGTH_LABEL_PREFIX + displayStrength.getDisplayName());
-        strengthLabel.setForeground(displayStrength.getDisplayColor());
-        entropyLabel.setText(ENTROPY_LABEL_PREFIX + String.format("%.2f", entropy) + " bits");
+            int length = password.length();
+            
+            StringBuilder allChars = new StringBuilder();
+            String excluded = cfg.excludeCharacters();
+            
+            if (cfg.includeUppercase()) allChars.append(PasswordGenerator.UPPERCASE);
+            if (cfg.includeLowercase()) allChars.append(PasswordGenerator.LOWERCASE);
+            if (cfg.includeDigits()) allChars.append(PasswordGenerator.DIGITS);
+            if (cfg.includeSymbols()) allChars.append(PasswordGenerator.SYMBOLS);
+
+            if (!cfg.customCharacters().isEmpty()) allChars.append(cfg.customCharacters());
+
+            String pool = allChars.toString();
+            
+            if (cfg.avoidAmbiguous()) {
+                pool = removeAmbiguous(pool);
+            }
+            if (!excluded.isEmpty()) {
+                pool = removeExcluded(pool, excluded);
+            }
+
+            long alphabetSize = pool.chars().distinct().count();
+            
+            if (alphabetSize <= 1) return 0.0;
+
+            return length * (Math.log(alphabetSize) / Math.log(2));
+        }
+        
+        private static String removeAmbiguous(String s) {
+            StringBuilder sb = new StringBuilder();
+            for (char c : s.toCharArray()) {
+                if (PasswordGenerator.AMBIGUOUS.indexOf(c) < 0) sb.append(c);
+            }
+            return sb.toString();
+        }
+        
+        private static String removeExcluded(String s, String excluded) {
+            StringBuilder sb = new StringBuilder();
+            for (char c : s.toCharArray()) {
+                if (excluded.indexOf(c) < 0) sb.append(c);
+            }
+            return sb.toString();
+        }
     }
 
-    /**
-     * Handles copying the displayed password to the system clipboard.
-     * Gère la copie du mot de passe affiché dans le presse-papiers du système.
-     */
-    private void handleCopyPassword() {
-        final String password = passwordDisplayField.getText();
-        if (password != null && !password.isEmpty()) {
+    static class PasswordStrengthEvaluator {
+        enum StrengthLevel {
+            VERY_WEAK("Très faible (< 40 bits)", new Color(0xFF4B4B)),
+            WEAK("Faible (40-60 bits)", new Color(0xFF884B)),
+            MEDIUM("Moyen (60-80 bits)", new Color(0xFFC14B)),
+            STRONG("Fort (80-100 bits)", new Color(0x73DA80)),
+            VERY_STRONG("Très fort (> 100 bits)", new Color(0x4CAF50));
+
+            final String label;
+            final Color color;
+
+            StrengthLevel(String label, Color color) {
+                this.label = label;
+                this.color = color;
+            }
+        }
+
+        StrengthLevel evaluate(double entropy, PasswordGenerationConfig cfg) {
+            if (entropy < 40) return StrengthLevel.VERY_WEAK;
+            if (entropy < 60) return StrengthLevel.WEAK;
+            if (entropy < 80) return StrengthLevel.MEDIUM;
+            if (entropy < 100) return StrengthLevel.STRONG;
+            return StrengthLevel.VERY_STRONG;
+        }
+    }
+
+    //==========================
+    // UTILS DESIGN (Inchangé)
+    //==========================
+
+    static class RoundedButton extends JButton {
+        private static final int ARC_SIZE = 12;
+        private Color baseColor;
+        private Color hoverColor;
+
+        public RoundedButton(String text, Color baseColor, Color hoverColor) {
+            super(text);
+            this.baseColor = baseColor;
+            this.hoverColor = hoverColor;
+            setContentAreaFilled(false);
+            setFocusPainted(false);
+            setBorderPainted(false);
+            setOpaque(false);
+        }
+
+        @Override
+        protected void paintComponent(Graphics g) {
+            Graphics2D g2 = (Graphics2D) g.create();
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            
+            Color currentColor = baseColor;
+            if (getModel().isArmed()) {
+                currentColor = baseColor.darker();
+            } else if (getModel().isRollover()) {
+                currentColor = hoverColor;
+            } 
+
+            g2.setColor(currentColor);
+            g2.fillRoundRect(0, 0, getWidth() - 1, getHeight() - 1, ARC_SIZE, ARC_SIZE);
+
+            super.paintComponent(g);
+            g2.dispose();
+        }
+    }
+    
+    static class ModernSliderUI extends BasicSliderUI {
+        private final Color thumbColor;
+        private final Color trackColor;
+
+        public ModernSliderUI(JSlider b, Color thumbColor, Color trackColor) {
+            super(b);
+            this.thumbColor = thumbColor;
+            this.trackColor = trackColor;
+        }
+
+        @Override
+        public void paintTrack(Graphics g) {
+            Graphics2D g2 = (Graphics2D) g;
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+
+            int trackHeight = 6;
+            int trackY = trackRect.y + (trackRect.height - trackHeight) / 2;
+
+            g2.setColor(trackColor);
+            g2.fillRoundRect(trackRect.x, trackY, trackRect.width, trackHeight, 6, 6);
+
+            int fillWidth = xPositionForValue(slider.getValue()) - trackRect.x;
+            g2.setColor(thumbColor.darker().darker());
+            g2.fillRoundRect(trackRect.x, trackY, fillWidth, trackHeight, 6, 6);
+        }
+
+        @Override
+        public void paintThumb(Graphics g) {
+            Graphics2D g2 = (Graphics2D) g;
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+
+            int thumbSize = 16;
+            int x = thumbRect.x + (thumbRect.width - thumbSize) / 2;
+            int y = thumbRect.y + (thumbRect.height - thumbSize) / 2;
+
+            g2.setColor(thumbColor);
+            g2.fillOval(x, y, thumbSize, thumbSize);
+
+            g2.setColor(thumbColor.darker());
+            g2.drawOval(x, y, thumbSize, thumbSize);
+        }
+    }
+
+
+    interface DocumentChangeListener {
+        void onChange();
+    }
+
+    static class SimpleDocumentListener implements javax.swing.event.DocumentListener {
+        private final DocumentChangeListener listener;
+
+        SimpleDocumentListener(DocumentChangeListener listener) {
+            this.listener = Objects.requireNonNull(listener);
+        }
+
+        @Override
+        public void insertUpdate(javax.swing.event.DocumentEvent e) {
+            listener.onChange();
+        }
+
+        @Override
+        public void removeUpdate(javax.swing.event.DocumentEvent e) {
+            listener.onChange();
+        }
+
+        @Override
+        public void changedUpdate(javax.swing.event.DocumentEvent e) {
+            listener.onChange();
+        }
+    }
+    
+    //==========================
+    // VIEW + CONTROLLER (MainFrame)
+    //==========================
+    static class MainFrame extends JFrame {
+
+        private PasswordGenerationConfig cfg = new PasswordGenerationConfig();
+        private final PasswordGenerator generator = new PasswordGenerator();
+        private final PasswordStrengthEvaluator strengthEvaluator = new PasswordStrengthEvaluator();
+
+        // UI components
+        private JTextField passwordField;
+        private JButton generateButton;
+        private JButton copyButton;
+        private JButton hideShowButton;
+        private JButton newConfigButton;
+        private JSlider lengthSlider;
+        private JLabel lengthValueLabel;
+        private JCheckBox uppercaseCheck;
+        private JCheckBox lowercaseCheck;
+        private JCheckBox digitsCheck;
+        private JCheckBox symbolsCheck;
+        private JCheckBox avoidAmbiguousCheck;
+        private JCheckBox requireEachSetCheck;
+        private JCheckBox pronounceableCheck;
+        private JTextField customCharactersField;
+        private JTextField excludeCharactersField;
+        private JLabel strengthLabel;
+        private JLabel entropyLabel;
+        private JProgressBar strengthBar;
+        private DefaultListModel<String> historyModel;
+        private JList<String> historyList;
+        private boolean isPasswordHidden = false;
+        private String currentPassword = "";
+
+        // Colors and theme (Soft Dark Mode)
+        private final Color bgPrimary = new Color(0x1A1B26);
+        private final Color bgSecondary = new Color(0x282A36);
+        private final Color accent = new Color(0x82AAFF);
+        private final Color accentSoft = new Color(0x7996DB);
+        private final Color textPrimary = new Color(0xF8F8F2);
+        private final Color textSecondary = new Color(0xAEAEB5);
+        private final Color borderColor = new Color(0x44475A);
+
+        // NOUVELLES DEFINITIONS DE POLICES POUR LE STYLE LIFESTYLE
+        // Utilisation de 'Arial' ou 'Segoe UI' (plus doux) comme substitut de Sans-serif moderne
+        private static final String FONT_NAME_SANS = "Segoe UI"; // Police plus douce et arrondie
+        private static final String FONT_NAME_MONO = "JetBrains Mono"; // Reste technique pour la lisibilité
+        
+        // Tailles et Poids pour le style Lifestyle (plus aéré et marqué)
+        private final Font FONT_TITLE = new Font(FONT_NAME_SANS, Font.BOLD, 20); // Plus grande et grasse
+        private final Font FONT_SUBTITLE = new Font(FONT_NAME_SANS, Font.PLAIN, 12); // Plus aérée
+        private final Font FONT_CARD_HEADER = new Font(FONT_NAME_SANS, Font.BOLD, 16);
+        private final Font FONT_LABEL = new Font(FONT_NAME_SANS, Font.PLAIN, 14); // Taille légèrement augmentée
+        private final Font FONT_BUTTON = new Font(FONT_NAME_SANS, Font.BOLD, 15);
+        
+        private final Font FONT_MONO_LARGE = new Font(FONT_NAME_MONO, Font.BOLD, 24); // Encore plus grand
+        private final Font FONT_MONO_SMALL = new Font(FONT_NAME_MONO, Font.PLAIN, 13);
+
+
+        MainFrame() {
+            super("Ultra Password Generator - Édition Lifestyle 2026");
+            initFrame();
+            initComponents();
+            layoutComponents();
+            attachListeners();
+            generateInitialPassword();
+        }
+
+        private void initFrame() {
+            setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+            setMinimumSize(new Dimension(1080, 700));
+            setLocationRelativeTo(null);
+            setLayout(new BorderLayout());
+            getContentPane().setBackground(bgPrimary);
+        }
+
+        private void initComponents() {
+            passwordField = new JTextField();
+            // POLICE MONOSPACE GRANDE
+            passwordField.setFont(FONT_MONO_LARGE);
+            passwordField.setForeground(accent);
+            passwordField.setBackground(bgSecondary.darker());
+            passwordField.setBorder(BorderFactory.createCompoundBorder(
+                    BorderFactory.createLineBorder(borderColor.darker(), 1),
+                    new EmptyBorder(12, 16, 12, 16)
+            ));
+            passwordField.setCaretColor(accent);
+            passwordField.setEditable(false);
+
+            generateButton = createPrimaryButton("Générer");
+            copyButton = createSecondaryButton("Copier");
+            
+            hideShowButton = createIconButton("👁️");
+            newConfigButton = createIconButton("✨ Nouveau");
+
+            lengthSlider = new JSlider(6, 64, cfg.length());
+            lengthSlider.setOpaque(false);
+            lengthSlider.setMajorTickSpacing(8);
+            lengthSlider.setMinorTickSpacing(1);
+            lengthSlider.setPaintTicks(false);
+            lengthSlider.setPaintLabels(false);
+            lengthSlider.setUI(new ModernSliderUI(lengthSlider, accent, borderColor));
+
+            lengthValueLabel = new JLabel(cfg.length() + " caractères");
+            lengthValueLabel.setForeground(textSecondary);
+            // POLICE LABEL GRASSE
+            lengthValueLabel.setFont(FONT_LABEL.deriveFont(Font.BOLD));
+
+            // POLICE LABEL pour les options
+            uppercaseCheck = createCheckbox("Lettres majuscules (A-Z)", cfg.includeUppercase());
+            lowercaseCheck = createCheckbox("Lettres minuscules (a-z)", cfg.includeLowercase());
+            digitsCheck = createCheckbox("Chiffres (0-9)", cfg.includeDigits());
+            symbolsCheck = createCheckbox("Symboles (!@#$...)", cfg.includeSymbols());
+            avoidAmbiguousCheck = createCheckbox("Éviter les caractères ambigus (O,0,I,l,1,|)", cfg.avoidAmbiguous());
+            requireEachSetCheck = createCheckbox("Inclure au moins un caractère de chaque type sélectionné", cfg.requireEachSelectedSet());
+            pronounceableCheck = createCheckbox("Mot de passe 'prononçable' (consonne/voyelle)", cfg.pronounceableLike());
+
+            customCharactersField = createTextField(cfg.customCharacters());
+            customCharactersField.setToolTipText("Caractères supplémentaires à inclure.");
+            
+            excludeCharactersField = createTextField(cfg.excludeCharacters());
+            excludeCharactersField.setToolTipText("Caractères à exclure de la génération (même si sélectionnés).");
+
+            strengthLabel = new JLabel("Force du mot de passe : -");
+            strengthLabel.setForeground(textSecondary);
+            // POLICE LABEL GRASSE pour la force
+            strengthLabel.setFont(FONT_LABEL.deriveFont(Font.BOLD));
+            
+            entropyLabel = new JLabel("Entropie : 0.0 bits");
+            entropyLabel.setForeground(textSecondary);
+            // POLICE SUBTITLE
+            entropyLabel.setFont(FONT_SUBTITLE);
+
+            strengthBar = new JProgressBar(0, 100);
+            strengthBar.setValue(0);
+            strengthBar.setBorderPainted(false);
+            strengthBar.setForeground(accent);
+            strengthBar.setBackground(new Color(0x353849));
+            strengthBar.setPreferredSize(new Dimension(0, 12));
+            strengthBar.putClientProperty("JProgressBar.flat", Boolean.TRUE);
+
+            historyModel = new DefaultListModel<>();
+            historyList = new JList<>(historyModel);
+            historyList.setBackground(bgSecondary);
+            historyList.setForeground(textSecondary);
+            historyList.setSelectionBackground(accentSoft.darker());
+            historyList.setSelectionForeground(textPrimary);
+            // POLICE MONOSPACE PETITE
+            historyList.setFont(FONT_MONO_SMALL);
+            historyList.setBorder(new EmptyBorder(4, 0, 4, 0));
+        }
+
+        private JTextField createTextField(String initialValue) {
+             JTextField field = new JTextField();
+            // POLICE LABEL
+            field.setFont(FONT_LABEL);
+            field.setForeground(textPrimary);
+            field.setBackground(bgSecondary.darker());
+            field.setBorder(BorderFactory.createCompoundBorder(
+                    BorderFactory.createLineBorder(borderColor.darker(), 1),
+                    new EmptyBorder(6, 8, 6, 8)
+            ));
+            field.setText(initialValue);
+            return field;
+        }
+
+        private JCheckBox createCheckbox(String text, boolean selected) {
+            JCheckBox checkBox = new JCheckBox(text, selected);
+            checkBox.setOpaque(false);
+            checkBox.setForeground(textSecondary);
+            // POLICE LABEL
+            checkBox.setFont(FONT_LABEL);
+            return checkBox;
+        }
+
+        private JButton createIconButton(String text) {
+            RoundedButton button = new RoundedButton(text, bgSecondary.darker(), borderColor);
+            // POLICE LABEL
+            button.setFont(FONT_LABEL);
+            button.setForeground(textSecondary);
+            button.setBorder(BorderFactory.createLineBorder(borderColor.darker(), 1));
+            button.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+            
+            button.baseColor = bgSecondary.darker(); 
+            button.hoverColor = borderColor;
+
+            button.addMouseListener(new MouseAdapter() {
+                @Override
+                public void mouseEntered(MouseEvent e) {
+                    button.setForeground(textPrimary);
+                    button.baseColor = borderColor;
+                    button.repaint();
+                }
+
+                @Override
+                public void mouseExited(MouseEvent e) {
+                    button.setForeground(textSecondary);
+                    button.baseColor = bgSecondary.darker();
+                    button.repaint();
+                }
+            });
+            return button;
+        }
+
+        private JButton createPrimaryButton(String text) {
+            RoundedButton button = new RoundedButton(text, accent, accentSoft);
+            // POLICE BOUTON
+            button.setFont(FONT_BUTTON);
+            button.setForeground(Color.WHITE);
+            button.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+            button.setBorder(new EmptyBorder(8, 18, 8, 18));
+            return button;
+        }
+
+        private JButton createSecondaryButton(String text) {
+            RoundedButton button = new RoundedButton(text, bgSecondary, borderColor);
+            // POLICE LABEL
+            button.setFont(FONT_LABEL);
+            button.setForeground(textSecondary);
+            button.setBorder(BorderFactory.createLineBorder(borderColor.darker(), 1));
+            button.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+            
+            button.baseColor = bgSecondary; 
+            button.hoverColor = bgSecondary.darker();
+
+            button.addMouseListener(new MouseAdapter() {
+                @Override
+                public void mouseEntered(MouseEvent e) {
+                    button.setForeground(textPrimary);
+                    button.baseColor = bgSecondary.darker();
+                    button.repaint();
+                }
+
+                @Override
+                public void mouseExited(MouseEvent e) {
+                    button.setForeground(textSecondary);
+                    button.baseColor = bgSecondary;
+                    button.repaint();
+                }
+            });
+            return button;
+        }
+
+        private JPanel createCardPanel(String title, String subtitle) {
+            JPanel panel = new JPanel();
+            panel.setBackground(bgSecondary);
+            panel.setBorder(BorderFactory.createCompoundBorder(
+                    BorderFactory.createLineBorder(borderColor, 1, true),
+                    new EmptyBorder(18, 18, 18, 18)
+            ));
+            panel.setLayout(new BorderLayout(0, 15));
+
+            JPanel header = new JPanel(new BorderLayout());
+            header.setOpaque(false);
+
+            JLabel titleLabel = new JLabel(title);
+            titleLabel.setForeground(textPrimary);
+            // POLICE ENTÊTE DE CARTE
+            titleLabel.setFont(FONT_CARD_HEADER);
+
+            JLabel subtitleLabel = new JLabel(subtitle);
+            subtitleLabel.setForeground(textSecondary.darker());
+            // POLICE SUBTITLE
+            subtitleLabel.setFont(FONT_SUBTITLE);
+
+            header.add(titleLabel, BorderLayout.NORTH);
+            header.add(subtitleLabel, BorderLayout.SOUTH);
+
+            panel.add(header, BorderLayout.NORTH);
+
+            return panel;
+        }
+
+        private void layoutComponents() {
+            JPanel content = new JPanel();
+            content.setBackground(bgPrimary);
+            content.setLayout(new BorderLayout());
+            content.setBorder(new EmptyBorder(24, 24, 16, 24));
+            add(content, BorderLayout.CENTER);
+
+            // TOP BAR
+            JPanel appBar = new JPanel(new BorderLayout());
+            appBar.setOpaque(false);
+            
+            JLabel title = new JLabel("Ultra Password Generator");
+            title.setForeground(textPrimary);
+            // POLICE TITRE PRINCIPAL
+            title.setFont(FONT_TITLE);
+
+            JLabel version = new JLabel("Édition Lifestyle 2026 • Java SE Desktop");
+            version.setForeground(textSecondary);
+            // POLICE SUBTITLE
+            version.setFont(FONT_SUBTITLE);
+
+            JPanel titlePanel = new JPanel();
+            titlePanel.setOpaque(false);
+            titlePanel.setLayout(new BoxLayout(titlePanel, BoxLayout.Y_AXIS));
+            titlePanel.add(title);
+            titlePanel.add(Box.createVerticalStrut(4));
+            titlePanel.add(version);
+
+            appBar.add(titlePanel, BorderLayout.WEST);
+            appBar.add(newConfigButton, BorderLayout.EAST);
+
+            content.add(appBar, BorderLayout.NORTH);
+
+            // CENTER: Main split
+            JSplitPane splitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT);
+            splitPane.setResizeWeight(0.60);
+            splitPane.setBorder(null);
+            splitPane.setBackground(bgPrimary);
+            splitPane.setDividerSize(10);
+
+            JPanel leftPanel = new JPanel();
+            leftPanel.setOpaque(false);
+            leftPanel.setLayout(new BoxLayout(leftPanel, BoxLayout.Y_AXIS));
+            leftPanel.add(createGeneratorPanel());
+            leftPanel.add(Box.createVerticalStrut(20));
+            leftPanel.add(createStrengthPanel());
+
+            JPanel rightPanel = new JPanel();
+            rightPanel.setOpaque(false);
+            rightPanel.setLayout(new BorderLayout());
+            rightPanel.add(createHistoryPanel(), BorderLayout.CENTER);
+
+            splitPane.setLeftComponent(leftPanel);
+            splitPane.setRightComponent(rightPanel);
+
+            content.add(splitPane, BorderLayout.CENTER);
+
+            // Status bar
+            JPanel statusBar = new JPanel(new BorderLayout());
+            statusBar.setBackground(bgPrimary);
+            statusBar.setBorder(new EmptyBorder(10, 0, 0, 0));
+
+            JLabel hint = new JLabel("Astuce : Ctrl/Cmd + G pour Générer | Ctrl/Cmd + C pour Copier | Double-clic sur l'historique pour copier.");
+            hint.setForeground(textSecondary.darker());
+            // POLICE SUBTITLE
+            hint.setFont(FONT_SUBTITLE);
+
+            statusBar.add(hint, BorderLayout.WEST);
+
+            content.add(statusBar, BorderLayout.SOUTH);
+        }
+
+        private JPanel createGeneratorPanel() {
+            JPanel card = createCardPanel("Générateur de mot de passe", "Critères robustes pour une sécurité maximale.");
+
+            JPanel center = new JPanel();
+            center.setOpaque(false);
+            center.setLayout(new BoxLayout(center, BoxLayout.Y_AXIS));
+            center.setBorder(new EmptyBorder(10, 0, 0, 0));
+
+            // Row: password field + buttons
+            JPanel rowPassword = new JPanel(new BorderLayout(10, 0));
+            rowPassword.setOpaque(false);
+            rowPassword.add(passwordField, BorderLayout.CENTER);
+
+            JPanel btnPanel = new JPanel();
+            btnPanel.setOpaque(false);
+            btnPanel.setLayout(new BoxLayout(btnPanel, BoxLayout.X_AXIS));
+            btnPanel.add(hideShowButton);
+            btnPanel.add(Box.createHorizontalStrut(10));
+            btnPanel.add(generateButton);
+            btnPanel.add(Box.createHorizontalStrut(10));
+            btnPanel.add(copyButton);
+
+            rowPassword.add(btnPanel, BorderLayout.EAST);
+
+            center.add(rowPassword);
+            center.add(Box.createVerticalStrut(18));
+
+            // Length row
+            JPanel lengthRow = new JPanel(new BorderLayout(10, 0));
+            lengthRow.setOpaque(false);
+
+            JLabel lengthLabel = new JLabel("Longueur (Min 6, Max 64)");
+            lengthLabel.setForeground(textSecondary);
+            // POLICE LABEL
+            lengthLabel.setFont(FONT_LABEL);
+
+            lengthRow.add(lengthLabel, BorderLayout.WEST);
+            lengthRow.add(lengthSlider, BorderLayout.CENTER);
+            lengthRow.add(lengthValueLabel, BorderLayout.EAST);
+
+            center.add(lengthRow);
+            center.add(Box.createVerticalStrut(18));
+
+            // Options: character types
+            JPanel optionsPanel = new JPanel();
+            optionsPanel.setOpaque(false);
+            optionsPanel.setLayout(new GridLayout(2, 2, 12, 6));
+            optionsPanel.add(uppercaseCheck);
+            optionsPanel.add(lowercaseCheck);
+            optionsPanel.add(digitsCheck);
+            optionsPanel.add(symbolsCheck);
+
+            center.add(optionsPanel);
+            center.add(Box.createVerticalStrut(12));
+
+            center.add(avoidAmbiguousCheck);
+            center.add(Box.createVerticalStrut(6));
+            center.add(requireEachSetCheck);
+            center.add(Box.createVerticalStrut(6));
+            center.add(pronounceableCheck);
+            center.add(Box.createVerticalStrut(15));
+
+            // Custom character fields
+            
+            // Custom characters (Include)
+            JPanel customRow = new JPanel(new BorderLayout(8, 0));
+            customRow.setOpaque(false);
+            JLabel customLabel = new JLabel("Caractères à INCLURE (Optionnel)");
+            customLabel.setForeground(textSecondary);
+            // POLICE LABEL
+            customLabel.setFont(FONT_LABEL);
+            customRow.add(customLabel, BorderLayout.NORTH);
+            customRow.add(Box.createVerticalStrut(4), BorderLayout.CENTER);
+            customRow.add(customCharactersField, BorderLayout.SOUTH);
+            center.add(customRow);
+            center.add(Box.createVerticalStrut(10));
+            
+            // Exclude characters
+            JPanel excludeRow = new JPanel(new BorderLayout(8, 0));
+            excludeRow.setOpaque(false);
+            JLabel excludeLabel = new JLabel("Caractères à EXCLURE (Optionnel)");
+            excludeLabel.setForeground(textSecondary);
+            // POLICE LABEL
+            excludeLabel.setFont(FONT_LABEL);
+            excludeRow.add(excludeLabel, BorderLayout.NORTH);
+            excludeRow.add(Box.createVerticalStrut(4), BorderLayout.CENTER);
+            excludeRow.add(excludeCharactersField, BorderLayout.SOUTH);
+            center.add(excludeRow);
+
+
+            card.add(center, BorderLayout.CENTER);
+
+            return card;
+        }
+
+        private JPanel createStrengthPanel() {
+            JPanel card = createCardPanel("Analyse de la force", "Entropie cryptographique et évaluation NIST-compatible.");
+
+            JPanel center = new JPanel();
+            center.setOpaque(false);
+            center.setLayout(new BoxLayout(center, BoxLayout.Y_AXIS));
+            center.setBorder(new EmptyBorder(10, 0, 0, 0));
+
+            center.add(strengthLabel);
+            center.add(Box.createVerticalStrut(4));
+            center.add(entropyLabel);
+            center.add(Box.createVerticalStrut(8));
+            center.add(strengthBar);
+
+            card.add(center, BorderLayout.CENTER);
+
+            return card;
+        }
+
+        private JPanel createHistoryPanel() {
+            JPanel card = createCardPanel("Historique des mots de passe", "Stockage sécurisé pour la session en cours uniquement.");
+
+            JScrollPane scroll = new JScrollPane(historyList);
+            scroll.setBorder(BorderFactory.createLineBorder(borderColor.darker(), 1));
+            scroll.getViewport().setBackground(bgSecondary);
+            scroll.setBackground(bgSecondary);
+            scroll.setHorizontalScrollBarPolicy(ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
+
+            card.add(scroll, BorderLayout.CENTER);
+
+            JButton clearHistoryButton = createSecondaryButton("Effacer l'historique");
+            // POLICE LABEL
+            clearHistoryButton.setFont(FONT_LABEL);
+            clearHistoryButton.setBorder(new EmptyBorder(8, 12, 8, 12));
+            clearHistoryButton.addActionListener(e -> {
+                historyModel.clear();
+                Toolkit.getDefaultToolkit().beep();
+            });
+
+            JPanel footer = new JPanel(new BorderLayout());
+            footer.setOpaque(false);
+            footer.setBorder(new EmptyBorder(15, 0, 0, 0));
+            footer.add(clearHistoryButton, BorderLayout.EAST);
+
+            card.add(footer, BorderLayout.SOUTH);
+
+            return card;
+        }
+
+        private void attachListeners() {
+            generateButton.addActionListener(e -> generatePassword());
+
+            copyButton.addActionListener(e -> {
+                String pwd = passwordField.getText();
+                if (pwd != null && !pwd.isEmpty()) {
+                    copyToClipboard(currentPassword);
+                    showTransientMessage("Mot de passe copié dans le presse-papiers.");
+                } else {
+                    showTransientMessage("Aucun mot de passe à copier.");
+                }
+            });
+            
+            hideShowButton.addActionListener(e -> togglePasswordVisibility());
+            
+            newConfigButton.addActionListener(e -> resetConfigToDefault());
+
+            lengthSlider.addChangeListener(new ChangeListener() {
+                @Override
+                public void stateChanged(ChangeEvent e) {
+                    cfg = updateConfigState();
+                    lengthValueLabel.setText(cfg.length() + " caractères");
+                    onPasswordChanged();
+                }
+            });
+
+            ActionListener configUpdater = e -> {
+                cfg = updateConfigState();
+                onPasswordChanged();
+            };
+            uppercaseCheck.addActionListener(configUpdater);
+            lowercaseCheck.addActionListener(configUpdater);
+            digitsCheck.addActionListener(configUpdater);
+            symbolsCheck.addActionListener(configUpdater);
+            avoidAmbiguousCheck.addActionListener(configUpdater);
+            requireEachSetCheck.addActionListener(configUpdater);
+            pronounceableCheck.addActionListener(configUpdater);
+
+            SimpleDocumentListener docListener = new SimpleDocumentListener(() -> {
+                cfg = updateConfigState();
+                onPasswordChanged();
+            });
+            customCharactersField.getDocument().addDocumentListener(docListener);
+            excludeCharactersField.getDocument().addDocumentListener(docListener);
+
+            historyList.addMouseListener(new MouseAdapter() {
+                @Override
+                public void mouseClicked(MouseEvent e) {
+                    if (e.getClickCount() == 2) {
+                        int index = historyList.locationToIndex(e.getPoint());
+                        if (index >= 0) {
+                            String line = historyModel.get(index);
+                            String pwd = extractPasswordFromHistoryLine(line);
+                            if (!pwd.isEmpty()) {
+                                copyToClipboard(pwd);
+                                currentPassword = pwd;
+                                passwordField.setText(isPasswordHidden ? repeatChar('•', pwd.length()) : pwd);
+                                onPasswordChanged();
+                                showTransientMessage("Mot de passe copié depuis l'historique.");
+                            }
+                        }
+                    }
+                }
+            });
+
+            InputMap im = passwordField.getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW);
+            ActionMap am = passwordField.getActionMap();
+            final int shortcutMask = Toolkit.getDefaultToolkit().getMenuShortcutKeyMaskEx();
+            
+            im.put(KeyStroke.getKeyStroke(KeyEvent.VK_G, shortcutMask), "generate");
+            im.put(KeyStroke.getKeyStroke(KeyEvent.VK_C, shortcutMask), "copy");
+            im.put(KeyStroke.getKeyStroke(KeyEvent.VK_H, shortcutMask), "toggleVisibility");
+
+            am.put("generate", new AbstractAction() {
+                @Override public void actionPerformed(ActionEvent e) { generatePassword(); }
+            });
+            am.put("copy", new AbstractAction() {
+                @Override public void actionPerformed(ActionEvent e) { 
+                    copyToClipboard(currentPassword);
+                    showTransientMessage("Copié avec Ctrl/Cmd + C.");
+                }
+            });
+            am.put("toggleVisibility", new AbstractAction() {
+                @Override public void actionPerformed(ActionEvent e) { togglePasswordVisibility(); }
+            });
+
+            JPopupMenu popup = new JPopupMenu();
+            JMenuItem copyItem = new JMenuItem(new DefaultEditorKit.CopyAction());
+            copyItem.setText("Copier");
+            popup.add(copyItem);
+
+            passwordField.setComponentPopupMenu(popup);
+        }
+
+        private PasswordGenerationConfig updateConfigState() {
+            return new PasswordGenerationConfig(
+                    lengthSlider.getValue(),
+                    uppercaseCheck.isSelected(),
+                    lowercaseCheck.isSelected(),
+                    digitsCheck.isSelected(),
+                    symbolsCheck.isSelected(),
+                    avoidAmbiguousCheck.isSelected(),
+                    requireEachSetCheck.isSelected(),
+                    pronounceableCheck.isSelected(),
+                    customCharactersField.getText(),
+                    excludeCharactersField.getText()
+            );
+        }
+
+        private void resetConfigToDefault() {
+            cfg = new PasswordGenerationConfig();
+            
+            lengthSlider.setValue(cfg.length());
+            lengthValueLabel.setText(cfg.length() + " caractères");
+            uppercaseCheck.setSelected(cfg.includeUppercase());
+            lowercaseCheck.setSelected(cfg.includeLowercase());
+            digitsCheck.setSelected(cfg.includeDigits());
+            symbolsCheck.setSelected(cfg.includeSymbols());
+            avoidAmbiguousCheck.setSelected(cfg.avoidAmbiguous());
+            requireEachSetCheck.setSelected(cfg.requireEachSelectedSet());
+            pronounceableCheck.setSelected(cfg.pronounceableLike());
+            customCharactersField.setText(cfg.customCharacters());
+            excludeCharactersField.setText(cfg.excludeCharacters());
+            
+            generatePassword(); 
+            showTransientMessage("Configuration réinitialisée aux valeurs par défaut.");
+        }
+
+        private void generateInitialPassword() {
+            generatePassword();
+        }
+
+        private void generatePassword() {
             try {
-                final StringSelection stringSelection = new StringSelection(password);
-                final Clipboard clipboard = Toolkit.getDefaultToolkit().getSystemClipboard();
-                clipboard.setContents(stringSelection, null);
-                JOptionPane.showMessageDialog(frame,
-                        COPY_SUCCESS_MESSAGE,
-                        COPY_SUCCESS_TITLE,
-                        JOptionPane.INFORMATION_MESSAGE);
-            } catch (final Exception ex) {
-                // Log detailed error for developers
-                System.err.println(COPY_ERROR_MESSAGE_PREFIX + ex.getMessage());
-                ex.printStackTrace();
-                // User-friendly message
-                JOptionPane.showMessageDialog(frame,
-                        COPY_ERROR_MESSAGE_PREFIX + ex.getMessage(),
-                        COPY_ERROR_TITLE,
-                        JOptionPane.ERROR_MESSAGE);
+                cfg = updateConfigState(); 
+                PasswordGenerationConfig configSnapshot = cfg.cloneConfig();
+                String pwd = generator.generate(configSnapshot);
+                currentPassword = pwd;
+                
+                passwordField.setText(isPasswordHidden ? repeatChar('•', pwd.length()) : pwd);
+                
+                onPasswordChanged();
+                addToHistory(pwd, configSnapshot);
+            } catch (IllegalArgumentException ex) {
+                passwordField.setText("ERREUR");
+                currentPassword = "";
+                onPasswordChanged();
+                showTransientMessage(ex.getMessage());
             }
-        } else {
-            JOptionPane.showMessageDialog(frame,
-                    NO_PASSWORD_TO_COPY_MESSAGE,
-                    NO_PASSWORD_TO_COPY_TITLE,
-                    JOptionPane.WARNING_MESSAGE);
         }
-    }
-
-    /**
-     * Displays the history of generated passwords in a new modal dialog.
-     * Affiche l'historique des mots de passe générés dans une nouvelle boîte de dialogue modale.
-     */
-    private void showPasswordHistory() {
-        if (passwordHistory.isEmpty()) {
-            JOptionPane.showMessageDialog(frame,
-                    HISTORY_EMPTY_MESSAGE,
-                    HISTORY_EMPTY_TITLE,
-                    JOptionPane.INFORMATION_MESSAGE);
-            return;
-        }
-
-        final JDialog historyDialog = new JDialog(frame, HISTORY_DIALOG_TITLE, true); // Modal dialog
-        historyDialog.setSize(HISTORY_DIALOG_WIDTH, HISTORY_DIALOG_HEIGHT);
-        historyDialog.setLocationRelativeTo(frame);
-        historyDialog.setLayout(new BorderLayout());
-
-        final JTextArea historyDisplay = new JTextArea();
-        historyDisplay.setEditable(false);
-        historyDisplay.setFont(new Font("Monospaced", Font.PLAIN, 14));
-        historyDisplay.setBackground(PASSWORD_FIELD_BG); // Reusing password field's dark background
-        historyDisplay.setForeground(EXCLUDE_FIELD_TEXT_COLOR); // Reusing exclude field's light text color
-        historyDisplay.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
-
-        final StringBuilder historyText = new StringBuilder();
-        for (int i = 0; i < passwordHistory.size(); i++) {
-            historyText.append((i + 1)).append(". ").append(passwordHistory.get(i)).append("\n");
-        }
-        historyDisplay.setText(historyText.toString());
-
-        final JScrollPane scrollPane = new JScrollPane(historyDisplay);
-        historyDialog.add(scrollPane, BorderLayout.CENTER);
-
-        final JButton closeButton = createStyledButton(CLOSE_BUTTON_TEXT);
-        closeButton.addActionListener(new ActionListener() {
-            public void actionPerformed(final ActionEvent e) {
-                historyDialog.dispose();
+        
+        private void togglePasswordVisibility() {
+            isPasswordHidden = !isPasswordHidden;
+            if (currentPassword.isEmpty()) return;
+            
+            if (isPasswordHidden) {
+                passwordField.setText(repeatChar('•', currentPassword.length()));
+                hideShowButton.setText("🙈");
+                showTransientMessage("Mot de passe masqué.");
+            } else {
+                passwordField.setText(currentPassword);
+                hideShowButton.setText("👁️");
+                showTransientMessage("Mot de passe affiché.");
             }
-        });
-        final JPanel buttonPanel = new JPanel();
-        buttonPanel.setOpaque(false); // Transparent background
-        buttonPanel.add(closeButton);
-        historyDialog.add(buttonPanel, BorderLayout.SOUTH);
-
-        historyDialog.setVisible(true);
-    }
-
-    /**
-     * Main method to launch the application.
-     * Ensures UI operations are done on the Event Dispatch Thread.
-     * Méthode principale pour lancer l'application.
-     * Assure que les opérations de l'interface utilisateur sont exécutées sur le
-     * Event Dispatch Thread (EDT).
-     * @param args Command line arguments (not used).
-     * @param args Arguments de la ligne de commande (non utilisés).
-     */
-    public static void main(final String[] args) {
-        SwingUtilities.invokeLater(new Runnable() {
-            public void run() {
-                new PasswordGeneratorApp();
+        }
+        
+        private String repeatChar(char c, int count) {
+            StringBuilder sb = new StringBuilder(count);
+            for (int i = 0; i < count; i++) {
+                sb.append(c);
             }
-        });
+            return sb.toString();
+        }
+
+        private void onPasswordChanged() {
+            String pwd = currentPassword;
+            if (pwd.isEmpty()) {
+                strengthLabel.setText("Force du mot de passe : -");
+                entropyLabel.setText("Entropie : 0.0 bits");
+                strengthBar.setValue(0);
+                strengthBar.setForeground(new Color(0x353849));
+                return;
+            }
+            
+            double entropy = EntropyCalculator.calculate(pwd, cfg);
+            PasswordStrengthEvaluator.StrengthLevel level = strengthEvaluator.evaluate(entropy, cfg);
+
+            strengthLabel.setText("Force du mot de passe : " + level.label.split("\\s+\\(")[0]);
+            entropyLabel.setText(String.format("Entropie : %.2f bits", entropy));
+
+            int value;
+            switch (level) {
+                case VERY_WEAK:
+                    value = 10;
+                    break;
+                case WEAK:
+                    value = 30;
+                    break;
+                case MEDIUM:
+                    value = 55;
+                    break;
+                case STRONG:
+                    value = 80;
+                    break;
+                case VERY_STRONG:
+                default:
+                    value = 100;
+                    break;
+            }
+
+            strengthBar.setValue(value);
+            strengthBar.setForeground(level.color);
+        }
+
+        private void addToHistory(String pwd, PasswordGenerationConfig configSnapshot) {
+            if (pwd == null || pwd.isEmpty()) return;
+
+            PasswordEntry entry = new PasswordEntry(pwd, configSnapshot);
+            historyModel.add(0, entry.toDisplayString());
+
+            int maxHistory = 100;
+            if (historyModel.getSize() > maxHistory) {
+                historyModel.removeElementAt(historyModel.size() - 1);
+            }
+        }
+
+        private String extractPasswordFromHistoryLine(String line) {
+            int idx = line.indexOf("]  ");
+            if (idx >= 0 && idx + 3 <= line.length()) {
+                return line.substring(idx + 3).trim();
+            }
+            return "";
+        }
+
+        private void copyToClipboard(String text) {
+            StringSelection selection = new StringSelection(text);
+            Toolkit.getDefaultToolkit().getSystemClipboard().setContents(selection, null);
+        }
+
+        private void showTransientMessage(String message) {
+            final JDialog dialog = new JDialog(this, false);
+            dialog.setUndecorated(true);
+            dialog.setBackground(new Color(0, 0, 0, 0));
+
+            JPanel panel = new JPanel(new BorderLayout());
+            panel.setBackground(new Color(40, 42, 54, 240)); 
+            panel.setBorder(new EmptyBorder(10, 16, 10, 16));
+
+            JLabel label = new JLabel(message);
+            label.setForeground(textPrimary);
+            // POLICE LABEL
+            label.setFont(FONT_LABEL);
+            panel.add(label, BorderLayout.CENTER);
+
+            dialog.getContentPane().add(panel);
+            dialog.pack();
+
+            Point p = getLocationOnScreen();
+            int x = p.x + (getWidth() - dialog.getWidth()) / 2;
+            int y = p.y + getHeight() - dialog.getHeight() - 40;
+            dialog.setLocation(x, y);
+
+            dialog.setVisible(true);
+
+            new Timer(2000, e -> dialog.dispose()).start();
+        }
+
     }
 }

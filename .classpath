@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<classpath>
+	<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER"/>
+	<classpathentry kind="src" path="PasswordGeneratorApp"/>
+	<classpathentry kind="lib" path="GenerateurDeMDP.jar"/>
+	<classpathentry kind="output" path="PasswordGeneratorApp"/>
+</classpath>
